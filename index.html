@@ -7,7 +7,7 @@
 </head>
 <body>
 <script>
-  (function () {
+  (async function () {
     try {
       var hash = location.hash.slice(1);
       if (!hash) {
@@ -17,12 +17,14 @@
       var b64 = hash.replace(/-/g, '+').replace(/_/g, '/');
       while (b64.length % 4) b64 += '=';
       var bytes = Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0); });
-      var html = new TextDecoder('utf-8').decode(bytes);
+      var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      var decompressed = await new Response(stream).arrayBuffer();
+      var html = new TextDecoder('utf-8').decode(decompressed);
       document.open();
       document.write(html);
       document.close();
     } catch (e) {
-      document.body.textContent = 'Invalid receipt link.';
+      document.body.textContent = 'Invalid receipt link: ' + (e && e.message ? e.message : e);
     }
   })();
 </script>
