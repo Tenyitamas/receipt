@@ -6,7 +6,22 @@
   <title>Receipt</title>
   <style>
     body { margin: 0; padding: 0; background: #fff; color: #000; }
-    #receipt { padding-bottom: 88px; }
+
+    /* Receipt layout (was baked into RECEIPT_HTML; moved here to shrink NFC payload). */
+    #receipt {
+      font: 13px ui-monospace, Menlo, Consolas, monospace;
+      max-width: 340px;
+      margin: 0 auto;
+      padding: 12px 12px 88px;
+    }
+    #receipt .hdr { text-align: center; margin-bottom: 6px; }
+    #receipt .row { display: flex; justify-content: space-between; margin: 1px 0; }
+    #receipt .cn  { text-align: center; margin: 4px 0; }
+    #receipt .sum { text-align: center; font-weight: bold; font-size: 14px; letter-spacing: 1px; margin: 10px 0 4px; }
+    #receipt .tot { font-weight: bold; font-size: 15px; margin-top: 4px; }
+    #receipt .ftr { text-align: center; font-size: 11px; line-height: 1.5; margin-top: 12px; }
+    #receipt hr   { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+
     .save-bar {
       position: fixed; bottom: 0; left: 0; right: 0;
       display: flex; gap: 8px; padding: 12px;
@@ -22,9 +37,10 @@
     }
     .save-bar button:active { background: #000; color: #fff; }
     .save-bar button:disabled { opacity: 0.5; cursor: default; }
+
     @media print {
       .save-bar { display: none; }
-      #receipt { padding-bottom: 0; }
+      #receipt { padding-bottom: 12px; }
     }
   </style>
 </head>
@@ -50,11 +66,12 @@
       var decompressed = await new Response(stream).arrayBuffer();
       var html = new TextDecoder('utf-8').decode(decompressed);
 
+      // Payload may be a full HTML doc or just body fragments — handle both.
       var parsed = new DOMParser().parseFromString(html, 'text/html');
       parsed.querySelectorAll('style').forEach(function (s) {
         document.head.appendChild(s.cloneNode(true));
       });
-      receiptEl.innerHTML = parsed.body.innerHTML;
+      receiptEl.innerHTML = parsed.body.innerHTML || html;
     } catch (e) {
       receiptEl.textContent = 'Invalid receipt link: ' + (e && e.message ? e.message : e);
     }
