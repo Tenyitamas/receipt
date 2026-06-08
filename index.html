@@ -51,6 +51,84 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+  // ---- Receipt data model ----------------------------------------------
+  // The payload is gzipped JSON (base64url-encoded in the URL hash) holding
+  // only the data — this page renders the slip from it. Shape:
+  //
+  // {
+  //   "header":  ["MY STORE", "1051 Budapest, Fő u. 1."],  // centered title lines
+  //   "info":    [ {"label": "Date",   "value": "2026-06-08 12:30"},
+  //                {"label": "Receipt #", "value": "A-001234"} ],
+  //   "items":   [ {"label": "Coffee", "value": "590 Ft"},
+  //                {"label": "Sandwich x2", "value": "1 380 Ft"} ],
+  //   "note":    "Thank you for your purchase!",            // centered free text
+  //   "summary": "TOTAL",                                   // big centered label
+  //   "total":   {"label": "Total", "value": "1 970 Ft"},   // bold total row
+  //   "footer":  ["VAT 27% included", "www.mystore.hu"]     // small centered lines
+  // }
+  //
+  // Every field is optional — only what you provide is rendered.
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function appendLines(parent, value, className) {
+    if (value == null) return;
+    var lines = Array.isArray(value) ? value : [value];
+    lines.forEach(function (line) {
+      parent.appendChild(el('div', className, line));
+    });
+  }
+
+  function appendRows(parent, rows) {
+    if (!Array.isArray(rows)) return;
+    rows.forEach(function (r) {
+      var row = el('div', 'row');
+      row.appendChild(el('span', null, r.label != null ? r.label : ''));
+      row.appendChild(el('span', null, r.value != null ? r.value : ''));
+      parent.appendChild(row);
+    });
+  }
+
+  function render(data, target) {
+    target.textContent = '';
+
+    appendLines(target, data.header, 'hdr');
+
+    if (Array.isArray(data.info) && data.info.length) {
+      target.appendChild(el('hr'));
+      appendRows(target, data.info);
+    }
+
+    if (Array.isArray(data.items) && data.items.length) {
+      target.appendChild(el('hr'));
+      appendRows(target, data.items);
+    }
+
+    appendLines(target, data.note, 'cn');
+
+    if (data.summary != null) {
+      target.appendChild(el('hr'));
+      target.appendChild(el('div', 'sum', data.summary));
+    }
+
+    if (data.total) {
+      var totRow = el('div', 'row tot');
+      totRow.appendChild(el('span', null, data.total.label != null ? data.total.label : ''));
+      totRow.appendChild(el('span', null, data.total.value != null ? data.total.value : ''));
+      target.appendChild(totRow);
+    }
+
+    if (data.footer != null) {
+      target.appendChild(el('hr'));
+      appendLines(target, data.footer, 'ftr');
+    }
+  }
+
   (async function () {
     var receiptEl = document.getElementById('receipt');
     try {
@@ -64,14 +142,10 @@
       var bytes = Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0); });
       var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
       var decompressed = await new Response(stream).arrayBuffer();
-      var html = new TextDecoder('utf-8').decode(decompressed);
+      var json = new TextDecoder('utf-8').decode(decompressed);
 
-      // Payload may be a full HTML doc or just body fragments — handle both.
-      var parsed = new DOMParser().parseFromString(html, 'text/html');
-      parsed.querySelectorAll('style').forEach(function (s) {
-        document.head.appendChild(s.cloneNode(true));
-      });
-      receiptEl.innerHTML = parsed.body.innerHTML || html;
+      var data = JSON.parse(json);
+      render(data, receiptEl);
     } catch (e) {
       receiptEl.textContent = 'Invalid receipt link: ' + (e && e.message ? e.message : e);
     }
